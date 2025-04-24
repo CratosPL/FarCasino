@@ -5,12 +5,12 @@ const compression = require("compression");
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Optymalizacja CORS - zezwalaj na żądania z 'https://play.farcade.ai'
+// Konfiguracja CORS - zezwalaj na żądania z 'https://play.farcade.ai'
 app.use(cors({ origin: "https://play.farcade.ai" }));
 app.use(compression()); // Włącz kompresję gzip/deflate
 app.use(express.json());
 
-// Symbol definitions
+// Definicje symboli
 const symbols = [
   { id: "symbol1", value: 1, weight: 15 },
   { id: "symbol2", value: 1, weight: 15 },
@@ -27,7 +27,7 @@ const symbols = [
   { id: "wildexpand1", value: 0, weight: 1 },
 ];
 
-// Prekompiluj wagi symboli dla szybszego losowania
+// Prekompilacja wag symboli dla szybszego losowania
 const symbolWeights = [];
 let totalWeight = 0;
 
@@ -47,7 +47,7 @@ function initSymbolWeights() {
 
 initSymbolWeights();
 
-// Payline definitions
+// Definicje linii wygranych
 const paylines = [
   [0, 0, 0, 0, 0],
   [1, 1, 1, 1, 1],
@@ -66,7 +66,7 @@ const paylines = [
   [4, 3, 3, 3, 4],
 ];
 
-// In-memory database
+// Baza danych w pamięci
 const players = {};
 let globalTurnover = 0;
 let globalWins = 0;
@@ -90,7 +90,7 @@ function cleanupInactivePlayers() {
 // Uruchom czyszczenie co 10 minut
 setInterval(cleanupInactivePlayers, 10 * 60 * 1000);
 
-// Zoptymalizowana funkcja getRandomSymbol
+// Zoptymalizowana funkcja losowania symbolu
 function getRandomSymbol(scatterCount) {
   const rand = crypto.randomInt(0, totalWeight);
 
@@ -103,7 +103,7 @@ function getRandomSymbol(scatterCount) {
     if (rand < symbolWeights[mid].threshold) {
       const symbol = symbolWeights[mid].symbol;
       if (symbol.id === "scatter" && scatterCount >= 3) {
-        // Wybierz inny symbol jeśli scatter limit osiągnięty
+        // Wybierz inny symbol jeśli limit scatterów osiągnięty
         return symbols.find((s) => s.id !== "scatter");
       }
       return symbol;
@@ -114,13 +114,13 @@ function getRandomSymbol(scatterCount) {
   return symbols[0];
 }
 
-// Funkcja do generowania mnożników dla Wild Expand
+// Funkcja generująca mnożniki dla Wild Expand
 function generateWildExpandMultiplier() {
   // 70% szans na 4x, 30% szans na 10x
   return Math.random() < 0.7 ? 4 : 10;
 }
 
-// Player initialization
+// Inicjalizacja gracza
 app.post("/init", (req, res) => {
   const playerId = req.body.playerId || `player_${Date.now()}`;
   players[playerId] = {
@@ -138,7 +138,7 @@ app.post("/init", (req, res) => {
   res.json({ playerId, ...players[playerId] });
 });
 
-// Spin execution
+// Wykonanie spinu
 app.post("/spin", (req, res) => {
   const { playerId, bet } = req.body;
   const player = players[playerId];
@@ -159,7 +159,7 @@ app.post("/spin", (req, res) => {
     currentBet = player.bonusBet;
   }
 
-  // Generate reels
+  // Generowanie bębnów
   const reels = Array(5)
     .fill()
     .map(() => Array(7).fill(null));
@@ -171,7 +171,7 @@ app.post("/spin", (req, res) => {
     }
   }
 
-  // Check for wins
+  // Sprawdzanie wygranych
   let totalWin = 0;
   const winningLines = [];
   const scatterPositions = [];
@@ -249,7 +249,7 @@ app.post("/spin", (req, res) => {
     }
   }
 
-  // RTP adjustment
+  // Dostosowanie RTP
   const currentRTP = globalTurnover > 0 ? (globalWins / globalTurnover) * 100 : 0;
   if (currentRTP < 94 && globalTurnover > 1000) {
     symbols.find((s) => s.id === "wild").weight *= 1.1;
@@ -272,7 +272,7 @@ app.post("/spin", (req, res) => {
   });
 });
 
-// Statistics
+// Statystyki
 app.get("/stats/:playerId", (req, res) => {
   const playerId = req.params.playerId;
   const cacheKey = `stats_${playerId}`;
@@ -304,9 +304,8 @@ app.get("/stats/:playerId", (req, res) => {
   res.json(result);
 });
 
-// Dodaj endpoint testowy, który zwraca przykładowe dane w oczekiwanym formacie
+// Endpoint testowy zwracający przykładowe dane
 app.get("/test-spin", (req, res) => {
-  // Przykładowa odpowiedź zgodna z oczekiwanym formatem
   const testResponse = {
     reels: [
       ["symbol1", "wild", "scatter", "10", "J", "Q", "K"],
@@ -334,16 +333,17 @@ app.get("/test-spin", (req, res) => {
   res.json(testResponse);
 });
 
-// Dodaj endpoint do debugowania, który zwraca wszystkie symbole
+// Endpoint debugujący zwracający wszystkie symbole
 app.get("/symbols", (req, res) => {
   res.json(symbols);
 });
 
-// Dodaj endpoint do debugowania, który zwraca wszystkie linie wygranych
+// Endpoint debugujący zwracający wszystkie linie wygranych
 app.get("/paylines", (req, res) => {
   res.json(paylines);
 });
 
+// Endpoint wersji
 app.get("/version", (req, res) => {
   res.json({ version: "1.2.0", name: "FarCasino" });
 });
