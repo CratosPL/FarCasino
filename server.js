@@ -5,22 +5,8 @@ const compression = require("compression");
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Lista dozwolonych domen
-const allowedOrigins = ["https://app.farcade.ai", "https://play.farcade.ai"];
-
-// Konfiguracja CORS z dynamicznym sprawdzaniem originów
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-  })
-);
-
+// Optymalizacja CORS - zezwalaj na żądania z 'https://play.farcade.ai'
+app.use(cors({ origin: "https://play.farcade.ai" }));
 app.use(compression()); // Włącz kompresję gzip/deflate
 app.use(express.json());
 
@@ -47,6 +33,8 @@ let totalWeight = 0;
 
 function initSymbolWeights() {
   totalWeight = symbols.reduce((sum, s) => sum + s.weight, 0);
+
+  // Utwórz tablicę zakresów dla szybszego losowania
   let accumulatedWeight = 0;
   symbols.forEach((symbol) => {
     accumulatedWeight += symbol.weight;
@@ -91,6 +79,7 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 minut
 function cleanupInactivePlayers() {
   const now = Date.now();
   const inactiveThreshold = 30 * 60 * 1000; // 30 minut
+
   Object.keys(players).forEach((playerId) => {
     if (players[playerId].lastActivity && now - players[playerId].lastActivity > inactiveThreshold) {
       delete players[playerId];
@@ -104,24 +93,30 @@ setInterval(cleanupInactivePlayers, 10 * 60 * 1000);
 // Zoptymalizowana funkcja getRandomSymbol
 function getRandomSymbol(scatterCount) {
   const rand = crypto.randomInt(0, totalWeight);
+
+  // Szybsze wyszukiwanie binarne zamiast pętli
   let low = 0;
   const high = symbolWeights.length - 1;
+
   while (low <= high) {
     const mid = Math.floor((low + high) / 2);
     if (rand < symbolWeights[mid].threshold) {
       const symbol = symbolWeights[mid].symbol;
       if (symbol.id === "scatter" && scatterCount >= 3) {
+        // Wybierz inny symbol jeśli scatter limit osiągnięty
         return symbols.find((s) => s.id !== "scatter");
       }
       return symbol;
     }
     low = mid + 1;
   }
+
   return symbols[0];
 }
 
 // Funkcja do generowania mnożników dla Wild Expand
 function generateWildExpandMultiplier() {
+  // 70% szans na 4x, 30% szans na 10x
   return Math.random() < 0.7 ? 4 : 10;
 }
 
@@ -151,6 +146,7 @@ app.post("/spin", (req, res) => {
     return res.status(400).json({ error: "Invalid spin" });
   }
 
+  // Aktualizuj czas ostatniej aktywności
   player.lastActivity = Date.now();
 
   let currentBet = bet;
@@ -163,6 +159,7 @@ app.post("/spin", (req, res) => {
     currentBet = player.bonusBet;
   }
 
+  // Generate reels
   const reels = Array(5)
     .fill()
     .map(() => Array(7).fill(null));
@@ -174,11 +171,13 @@ app.post("/spin", (req, res) => {
     }
   }
 
+  // Check for wins
   let totalWin = 0;
   const winningLines = [];
   const scatterPositions = [];
   const wildExpandMultipliers = [];
 
+  // Znajdź pozycje scatterów i wildexpand1
   for (let i = 0; i < 5; i++) {
     for (let j = 0; j < 5; j++) {
       if (reels[i][j].id === "scatter") {
@@ -278,6 +277,7 @@ app.get("/stats/:playerId", (req, res) => {
   const playerId = req.params.playerId;
   const cacheKey = `stats_${playerId}`;
 
+  // Sprawdź czy mamy buforowane wyniki
   if (resultsCache.has(cacheKey)) {
     const cachedResult = resultsCache.get(cacheKey);
     if (Date.now() - cachedResult.timestamp < CACHE_TTL) {
@@ -295,6 +295,7 @@ app.get("/stats/:playerId", (req, res) => {
     currentRTP: player.totalTurnover > 0 ? ((player.totalWins / player.totalTurnover) * 100).toFixed(2) : 0,
   };
 
+  // Zapisz do bufora
   resultsCache.set(cacheKey, {
     timestamp: Date.now(),
     data: result,
@@ -305,6 +306,7 @@ app.get("/stats/:playerId", (req, res) => {
 
 // Dodaj endpoint testowy, który zwraca przykładowe dane w oczekiwanym formacie
 app.get("/test-spin", (req, res) => {
+  // Przykładowa odpowiedź zgodna z oczekiwanym formatem
   const testResponse = {
     reels: [
       ["symbol1", "wild", "scatter", "10", "J", "Q", "K"],
@@ -328,6 +330,7 @@ app.get("/test-spin", (req, res) => {
     bonusWin: 0,
     currentRTP: 67.78,
   };
+
   res.json(testResponse);
 });
 
